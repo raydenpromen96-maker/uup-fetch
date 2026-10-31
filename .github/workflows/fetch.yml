@@ -1,0 +1,51 @@
+name: fetch-uup
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Probe Microsoft CDN speed
+        run: |
+          set -x
+          curl -s "https://uupdump.net/get.php?id=6c7bf258-2632-47dd-83ee-c23945978da1&pack=zh-cn&edition=professional&aria2=2" -o /tmp/aria2.txt
+          wc -l /tmp/aria2.txt
+          URL=$(head -1 /tmp/aria2.txt)
+          curl -o /dev/null -m 20 -w "SINGLE_CONN_SPEED=%{speed_download}\n" "$URL" || true
+
+      - name: Install aria2
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq aria2
+
+      - name: Download UUP set
+        run: |
+          mkdir -p UUPs
+          aria2c --no-conf --console-log-level=warn --log-level=info -x16 -s16 -j8 -c -R -d UUPs -i /tmp/aria2.txt
+          echo "=== downloaded ==="
+          du -sh UUPs
+          ls UUPs | wc -l
+
+      - name: Pack and split
+        run: |
+          tar -cf - UUPs | split -b 1800M - uuppart_
+          ls -lh uuppart_*
+          sha256sum uuppart_* | tee parts.sha256
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: uup-v1
+          name: uup files
+          files: |
+            uuppart_*
+            parts.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
