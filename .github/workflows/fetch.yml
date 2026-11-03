@@ -15,7 +15,7 @@ jobs:
       - name: Probe Microsoft CDN speed
         run: |
           set -x
-          curl -s "https://uupdump.net/get.php?id=6c7bf258-2632-47dd-83ee-c23945978da1&pack=zh-cn&edition=professional&aria2=2" -o /tmp/aria2.txt
+          curl -s "https://uupdump.net/get.php?id=e0b82ff0-68e8-4e56-a717-f18c0ef7e325&pack=zh-cn&edition=professional&aria2=2" -o /tmp/aria2.txt
           wc -l /tmp/aria2.txt
           URL=$(head -1 /tmp/aria2.txt)
           curl -o /dev/null -m 20 -w "SINGLE_CONN_SPEED=%{speed_download}\n" "$URL" || true
@@ -42,7 +42,7 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: uup-v1
+          tag_name: uup-w10
           name: uup files
           files: |
             uuppart_*
