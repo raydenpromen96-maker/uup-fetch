@@ -1,0 +1,90 @@
+name: build-win10-iso
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 300
+    steps:
+      - name: Fetch UUP manifest and files
+        shell: bash
+        run: |
+          set -e
+          curl.exe -sL "https://uupdump.net/get.php?id=e0b82ff0-68e8-4e56-a717-f18c0ef7e325&pack=zh-cn&edition=professional&aria2=2" -o aria2.txt
+          wc -l aria2.txt
+          mkdir -p UUPs
+          awk '/^http/{u=$0} /^  out=/{n=substr($0,7); gsub(/\r/,"",n); print u "\t" n}' aria2.txt > pairs.txt
+          wc -l pairs.txt
+          while IFS=$'\t' read -r u n; do
+            echo "-> $n"
+            curl.exe -sL --retry 3 --retry-all-errors -o "UUPs/$n" "$u"
+          done < pairs.txt
+          echo "=== downloaded ==="
+          ls UUPs | wc -l
+          du -sh UUPs
+
+      - name: Get converter pack
+        shell: bash
+        run: |
+          set -e
+          curl.exe -sL -o 7zr.exe "https://uupdump.net/misc/7zr.exe"
+          curl.exe -sL -o uupconv.7z "https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib-v128m.7z"
+          7zr.exe x -y -oUUPBUILD uupconv.7z > /dev/null
+          ls UUPBUILD | head
+
+      - name: Configure converter
+        shell: bash
+        run: |
+          set -e
+          f=UUPBUILD/ConvertConfig.ini
+          sed -i 's/AutoStart    =0/AutoStart    =1/' "$f"
+          sed -i 's/AddUpdates   =0/AddUpdates   =1/' "$f"
+          sed -i 's/Cleanup      =0/Cleanup      =1/' "$f"
+          sed -i 's/AutoExit     =0/AutoExit     =1/' "$f"
+          sed -i 's/ForceDism    =0/ForceDism    =1/' "$f"
+          cp -r UUPs UUPBUILD/UUPs
+          echo "=== config ==="
+          grep -E "AutoStart|AddUpdates|Cleanup|AutoExit|ForceDism|SkipISO" "$f"
+          echo "=== UUPs ==="
+          ls UUPBUILD/UUPs | wc -l
+
+      - name: Run convert-UUP.cmd
+        shell: cmd
+        run: |
+          cd UUPBUILD
+          convert-UUP.cmd
+          echo CONVERT_DONE
+          dir /s /b *.iso
+          dir *.wim 2>nul
+          if exist ErrorLog_*.txt type ErrorLog_*.txt
+
+      - name: Locate and split ISO
+        shell: bash
+        run: |
+          set -e
+          echo "=== ISO files ==="
+          find . -iname "*.iso" -type f -printf "%p %s\n"
+          ISO=$(find . -iname "*.iso" -type f | head -1)
+          if [ -z "$ISO" ]; then echo "NO ISO PRODUCED"; exit 1; fi
+          cp "$ISO" win10.iso
+          ls -lh win10.iso
+          sha256sum win10.iso | tee iso.sha256
+          split -b 1800M win10.iso isopart_
+          ls -lh isopart_*
+          sha256sum isopart_* | tee parts.sha256
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: win10-iso
+          name: Win10 22H2 ISO
+          files: |
+            isopart_*
+            parts.sha256
+            iso.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
