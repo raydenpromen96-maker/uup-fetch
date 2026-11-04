@@ -31,9 +31,10 @@ jobs:
         shell: bash
         run: |
           set -e
-          curl.exe -sL -o 7zr.exe "https://uupdump.net/misc/7zr.exe"
-          curl.exe -sL -o uupconv.7z "https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib-v128m.7z"
-          7zr.exe x -y -oUUPBUILD uupconv.7z > /dev/null
+          curl.exe -fsL -o 7zr.exe "https://uupdump.net/misc/7zr.exe"
+          curl.exe -fsL -o uupconv.7z "https://git.uupdump.net/uup-dump/misc/raw/branch/master/uup-converter-wimlib-v128m.7z"
+          ls -l 7zr.exe uupconv.7z
+          ./7zr.exe x -y -oUUPBUILD uupconv.7z > /dev/null
           ls UUPBUILD | head
 
       - name: Configure converter
@@ -45,8 +46,8 @@ jobs:
           sed -i 's/AddUpdates   =0/AddUpdates   =1/' "$f"
           sed -i 's/Cleanup      =0/Cleanup      =1/' "$f"
           sed -i 's/AutoExit     =0/AutoExit     =1/' "$f"
-          sed -i 's/ForceDism    =0/ForceDism    =1/' "$f"
-          cp -r UUPs UUPBUILD/UUPs
+          mkdir -p UUPBUILD/UUPs
+          cp -r UUPs/. UUPBUILD/UUPs/
           echo "=== config ==="
           grep -E "AutoStart|AddUpdates|Cleanup|AutoExit|ForceDism|SkipISO" "$f"
           echo "=== UUPs ==="
