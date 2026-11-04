@@ -1,0 +1,48 @@
+name: extract-win10-bootwim
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Pull ISO parts from release (GitHub internal, fast)
+        run: |
+          set -e
+          BASE="https://github.com/raydenpromen96-maker/uup-fetch/releases/download/win10-iso"
+          for p in isopart_aa isopart_ab isopart_ac isopart_ad; do
+            echo "-> $p"
+            curl -fsL -o "$p" "$BASE/$p"
+          done
+          curl -fsL -o parts.sha256 "$BASE/parts.sha256"
+          sha256sum -c parts.sha256
+          cat isopart_* > win10.iso
+          ls -lh win10.iso
+
+      - name: Install 7z and extract boot.wim + ei.cfg + setup.exe info
+        run: |
+          set -e
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq p7zip-full
+          mkdir -p out
+          7z e -y -oout win10.iso "sources/boot.wim" "sources/ei.cfg" "sources/install.wim" 2>&1 | tail -8
+          ls -lh out
+          echo "=== boot.wim info ==="
+          7z l win10.iso 2>/dev/null | grep -iE "boot\.wim|install\.wim|install\.esd|install\.swm" | head -10
+          sha256sum out/boot.wim | tee out/boot.sha256
+
+      - name: Upload small assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: win10-bootwim
+          name: Win10 official boot.wim
+          files: |
+            out/boot.wim
+            out/boot.sha256
+            out/ei.cfg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
